@@ -8,7 +8,7 @@ export async function deleteData(path: string, data: object) {
 	});
 }
 
-export async function getData(path: string, data: HeadersInit | undefined) {
+export async function getData(path: string, data: Headers | undefined) {
 	return await fetch(path, {
 		method: 'GET',
 		headers: data
