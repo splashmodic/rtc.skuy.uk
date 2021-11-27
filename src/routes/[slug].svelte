@@ -9,40 +9,51 @@
 </script>
 
 <script lang="ts">
+	import alert from '$lib/alert';
 	import { onMount } from 'svelte';
 	import { getItem, setItem } from '$lib/storage';
 	import MaterialIcon from './_MaterialIcon.svelte';
+	import ItemPerson from './_ItemPerson.svelte';
+	import Chat from './_Chat.svelte';
+	import People from './_People.svelte';
+	import { goto } from '$app/navigation';
 
 	export let slug: string;
 	const title = `Meet | ${slug}`;
 	let mounted = false;
-	let initMeet = false;
-	let chat = false;
-	let audio = false;
-	let video = false;
-	let present = false;
-	let hand = false;
-	let settings = false;
-	let people = true;
-	let sendChatEnabled = false;
+	let initMeet = true;
 	let isMobile = false;
-	let noNameError = false;
+
 	let name: string;
-	let chatTextArea: HTMLTextAreaElement;
-	let chatTextAreaValue = '';
-	let chatTextLength = 0;
+	let noNameError = false;
+	let peopleSearchValue = '';
+
+	let chatState = false;
+	let audioState = false;
+	let videoState = true;
+	let presentState = false;
+	let handState = false;
+	let settingsState = false;
+	let peopleState = false;
+
 	let localStream: MediaStream;
 	let notification: { type?: string; message?: string } = {};
 
+	let chat = [];
+
+	let peopleAll = [];
+	let people = [];
+
 	onMount(() => {
+		isMobile = (navigator as any).userAgentData.mobile ? true : false;
+
 		mounted = true;
 		name = getItem('name');
 		if (!name) {
 			name = undefined;
 		}
-		isMobile = (navigator as any).userAgentData.mobile ? true : false;
 
-		setVideo(video);
+		setVideo(videoState);
 	});
 
 	function popStateHandler(event: Event) {
@@ -55,7 +66,7 @@
 			try {
 				newAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 			} catch (error) {
-				audio = false;
+				audioState = false;
 				if (error.name === 'NotAllowedError') {
 					notification = {
 						type: 'error',
@@ -64,7 +75,7 @@
 				}
 			}
 			if (newAudioStream) {
-				audio = true;
+				audioState = true;
 				if (localStream) {
 					if (localStream && localStream.getAudioTracks().length) {
 						localStream.removeTrack(localStream.getAudioTracks()[0]);
@@ -75,7 +86,7 @@
 				}
 			}
 		} else {
-			audio = false;
+			audioState = false;
 			notification = {};
 			if (localStream) {
 				localStream.getAudioTracks()[0].stop();
@@ -89,7 +100,7 @@
 			try {
 				newVideoStream = await navigator.mediaDevices.getUserMedia({ video: true });
 			} catch (error) {
-				video = false;
+				videoState = false;
 				if (error.name === 'NotAllowedError') {
 					notification = {
 						type: 'error',
@@ -98,7 +109,7 @@
 				}
 			}
 			if (newVideoStream) {
-				video = true;
+				videoState = true;
 				if (localStream) {
 					if (localStream.getVideoTracks().length) {
 						localStream.removeTrack(localStream.getVideoTracks()[0]);
@@ -109,7 +120,7 @@
 				}
 			}
 		} else {
-			video = false;
+			videoState = false;
 			notification = {};
 			if (localStream) {
 				localStream.getVideoTracks()[0].stop();
@@ -136,49 +147,18 @@
 		initMeet = false;
 	}
 
-	function sendChat(event: Event) {
-		event.preventDefault();
-		console.log(chatTextAreaValue);
-		chatTextAreaValue = '';
+	function endCall() {
+		if (localStream) {
+			localStream.getTracks().forEach((track) => {
+				track.stop();
+			});
+		}
+		goto('/');
+		location.reload();
 	}
 
-	function textAreaKeydownHandler(
-		event: KeyboardEvent & {
-			currentTarget: EventTarget & HTMLTextAreaElement;
-		}
-	) {
-		if (event.key === 'Enter' && !event.shiftKey) {
-			event.preventDefault();
-			(event.target as HTMLTextAreaElement).form.dispatchEvent(
-				new Event('submit', { bubbles: true, cancelable: true })
-			);
-		}
-	}
-
-	$: {
-		if (chatTextAreaValue) {
-			sendChatEnabled = true;
-		} else {
-			sendChatEnabled = false;
-		}
-
-		if (chatTextArea) {
-			const textHeight = chatTextAreaValue.split('\n').length * 20;
-			let height = textHeight;
-			chatTextArea.style.height = `${height}px`;
-
-			const textAreaHeight = chatTextArea.scrollHeight;
-
-			if (textAreaHeight > textHeight) {
-				height = textAreaHeight;
-			}
-
-			if (height > 20 * 5) {
-				height = 20 * 5;
-			}
-
-			chatTextArea.style.height = `${height}px`;
-		}
+	$: if (!initMeet) {
+		peopleAll = peopleAll.concat({ name: name.toString() });
 	}
 
 	$: if (name !== undefined) {
@@ -188,8 +168,16 @@
 		setItem('name', name);
 	}
 
-	$: if (audio) {
-		console.log('starting audio');
+	$: if (peopleAll.length) {
+		people = peopleAll.map((person) => {
+			if (person.name.indexOf(peopleSearchValue) !== -1) {
+				return person;
+			}
+		});
+	}
+
+	$: if (audioState) {
+		console.log('starting audioState');
 		if (localStream && localStream.getAudioTracks()[0])
 			notification = {
 				type: 'success',
@@ -197,8 +185,8 @@
 			};
 	}
 
-	$: if (video) {
-		console.log('starting video');
+	$: if (videoState) {
+		console.log('starting videoState');
 		if (localStream && localStream.getVideoTracks()[0])
 			notification = {
 				type: 'success',
@@ -249,9 +237,9 @@
 					<div class="flex justify-evenly w-full pt-2 pb-3">
 						<button
 							class="hover:bg-white hover:bg-opacity-25 rounded"
-							on:click={() => setAudio(!audio)}
+							on:click={() => setAudio(!audioState)}
 						>
-							{#if audio}
+							{#if audioState}
 								<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>mic</MaterialIcon>
 							{:else}
 								<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>mic_off</MaterialIcon>
@@ -259,15 +247,15 @@
 						</button>
 						<button
 							class="hover:bg-white hover:bg-opacity-25 rounded"
-							on:click={() => setVideo(!video)}
+							on:click={() => setVideo(!videoState)}
 						>
-							{#if video}
+							{#if videoState}
 								<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>videocam</MaterialIcon>
 							{:else}
 								<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>videocam_off</MaterialIcon>
 							{/if}
 						</button>
-						<button class="hover:bg-white hover:bg-opacity-25 rounded"
+						<button class="hover:bg-white hover:bg-opacity-25 rounded" on:click={alert}
 							><MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>person_add_alt</MaterialIcon
 							></button
 						>
@@ -297,25 +285,25 @@
 				</div>
 			</div>
 		{:else}
-			<div class="fixed z-10 flex justify-between w-full p-4 text-white">
+			<div class="fixed z-20 flex justify-between w-full p-4 text-white">
 				<button
 					class={`bg-black bg-opacity-25 border border-opacity-25 rounded-full ${
-						chat ? 'text-[#8ab4f8]' : ''
+						chatState ? 'text-[#8ab4f8]' : ''
 					}`}
-					on:click={() => (chat = !chat)}
+					on:click={() => (chatState = !chatState)}
 				>
-					<MaterialIcon props={{ type: chat ? 'filled' : 'outlined', class: 'p-3' }}
+					<MaterialIcon props={{ type: chatState ? 'filled' : 'outlined', class: 'p-3' }}
 						>chat</MaterialIcon
 					>
 				</button>
 				<div class="flex gap-2.5">
 					<button
 						class={`${
-							audio ? 'bg-black bg-opacity-25' : 'bg-[#ea4335] bg-opacity-80'
+							audioState ? 'bg-black bg-opacity-25' : 'bg-[#ea4335] bg-opacity-80'
 						} border border-opacity-25 rounded-full`}
-						on:click={() => setAudio(!audio)}
+						on:click={() => setAudio(!audioState)}
 					>
-						{#if audio}
+						{#if audioState}
 							<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>mic</MaterialIcon>
 						{:else}
 							<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>mic_off</MaterialIcon>
@@ -323,11 +311,11 @@
 					</button>
 					<button
 						class={`${
-							video ? 'bg-black bg-opacity-25' : 'bg-[#ea4335] bg-opacity-80'
+							videoState ? 'bg-black bg-opacity-25' : 'bg-[#ea4335] bg-opacity-80'
 						} border border-opacity-25 rounded-full`}
-						on:click={() => setVideo(!video)}
+						on:click={() => setVideo(!videoState)}
 					>
-						{#if video}
+						{#if videoState}
 							<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>videocam</MaterialIcon>
 						{:else}
 							<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>videocam_off</MaterialIcon>
@@ -335,177 +323,64 @@
 					</button>
 					<button
 						class={`bg-black bg-opacity-25 border border-opacity-25 rounded-full ${
-							hand ? 'text-[#8ab4f8]' : ''
+							handState ? 'text-[#8ab4f8]' : ''
 						}`}
-						on:click={() => (hand = !hand)}
+						on:click={() => {
+							handState = !handState;
+							alert();
+						}}
 					>
-						<MaterialIcon props={{ type: hand ? 'filled' : 'outlined', class: 'p-3' }}
+						<MaterialIcon props={{ type: handState ? 'filled' : 'outlined', class: 'p-3' }}
 							>front_hand</MaterialIcon
 						>
 					</button>
 					<button
 						class={`bg-black bg-opacity-25 border border-opacity-25 rounded-full ${
-							present ? 'text-[#8ab4f8]' : ''
+							presentState ? 'text-[#8ab4f8]' : ''
 						}`}
-						on:click={() => (present = !present)}
+						on:click={() => {
+							presentState = !presentState;
+							alert();
+						}}
 					>
-						<MaterialIcon props={{ type: present ? 'filled' : 'outlined', class: 'p-3' }}
+						<MaterialIcon props={{ type: presentState ? 'filled' : 'outlined', class: 'p-3' }}
 							>present_to_all</MaterialIcon
 						>
 					</button>
-					<button class="bg-black bg-opacity-25 border border-opacity-25 rounded-full">
+					<button
+						class="bg-black bg-opacity-25 border border-opacity-25 rounded-full"
+						on:click={alert}
+					>
 						<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>more_vert</MaterialIcon>
 					</button>
-					<button class="bg-[#ea4335] bg-opacity-80 border border-opacity-25 rounded-full">
+					<button
+						class="bg-[#ea4335] bg-opacity-80 border border-opacity-25 rounded-full"
+						on:click={endCall}
+					>
 						<MaterialIcon props={{ type: 'outlined', class: 'p-3' }}>call_end</MaterialIcon>
 					</button>
 				</div>
 				<button
 					class={`bg-black bg-opacity-25 border border-opacity-25 rounded-full ${
-						people ? 'text-[#8ab4f8]' : ''
+						peopleState ? 'text-[#8ab4f8]' : ''
 					}`}
-					on:click={() => (people = !people)}
+					on:click={() => (peopleState = !peopleState)}
 				>
-					<MaterialIcon props={{ type: people ? 'filled' : 'outlined', class: 'p-3' }}
+					<MaterialIcon props={{ type: peopleState ? 'filled' : 'outlined', class: 'p-3' }}
 						>people_alt</MaterialIcon
 					>
 				</button>
 			</div>
 		{/if}
 		<div class="flex-1 flex items-center justify-center max-w-screen max-h-screen bg-black">
-			{#if chat}
-				<div class="relative z-10 h-full p-4 pr-0 pb-[5.125rem]">
-					<div class="flex flex-col w-[22.5rem] h-full bg-white rounded-lg">
-						<div class="flex items-center justify-between h-16 ml-6 mr-1">
-							<p class="text-lg leading-6">In-call messages</p>
-							<button
-								class="rounded-full hover:bg-[#dadce0] hover:bg-opacity-30"
-								on:click={() => (chat = false)}
-								><MaterialIcon props={{ type: 'outlined', class: `p-3` }}>close</MaterialIcon
-								></button
-							>
-						</div>
-						<div class="flex-1 mx-6 text-sm overflow-y-auto">
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-							<div class="my-3.5">
-								<div class="flex items-end">
-									<p class="mr-2 font-semibold text-black">You</p>
-									<p class="text-black text-opacity-50">11:00</p>
-								</div>
-								<p>This is dummy message</p>
-							</div>
-						</div>
-						<form class="m-4 bg-[#f1f3f4] rounded-3xl flex items-center" on:submit={sendChat}>
-							<!-- svelte-ignore a11y-autofocus -->
-							<textarea
-								class="w-full mx-4 my-3.5 mr-0 bg-transparent text-sm placeholder-[#5f6368] resize-none outline-none"
-								placeholder="Send a message to everyone"
-								rows="1"
-								autofocus
-								bind:this={chatTextArea}
-								bind:value={chatTextAreaValue}
-								on:keydown={textAreaKeydownHandler}
-							/>
-							<button type="submit"
-								><MaterialIcon
-									props={{
-										type: 'filled',
-										class: `p-3 bg-transparent ${
-											sendChatEnabled ? 'text-[#1a73e8]' : 'text-[rgba(60,64,67,0.38)]'
-										}`
-									}}>send</MaterialIcon
-								></button
-							>
-						</form>
-					</div>
-				</div>
+			{#if chatState}
+				<Chat bind:chatState bind:chat />
 			{/if}
-			{#if video}
-				<div class={`w-full h-full ${chat || people ? 'p-4 pb-[5.125rem]' : ''}`}>
-					<div class={`w-full h-full ${chat || people ? 'rounded-lg overflow-hidden' : ''}`}>
+			{#if videoState}
+				<div class={`w-full h-full ${chatState || peopleState ? 'p-4 pb-[5.125rem]' : ''}`}>
+					<div
+						class={`w-full h-full ${chatState || peopleState ? 'rounded-lg overflow-hidden' : ''}`}
+					>
 						<video
 							class="w-full h-full object-cover"
 							style="transform: rotateY(180deg);"
@@ -519,7 +394,7 @@
 			{:else}
 				<div class="flex items-center justify-center min-w-0 w-full max-w-full lg:h-full">
 					<div
-						class={`relative z-0 flex items-center justify-center w-48 h-48 rounded-full text-white ${
+						class={`absolute z-0 flex items-center justify-center w-48 h-48 rounded-full text-white ${
 							name ? 'bg-[#512da8]' : 'bg-[#aaa]'
 						}`}
 					>
@@ -537,47 +412,16 @@
 					</div>
 				</div>
 			{/if}
-			{#if people}
-				<div class="relative z-10 h-full p-4 pl-0 pb-[5.125rem]">
-					<div class="flex flex-col w-[22.5rem] h-full bg-white rounded-lg">
-						<div class="flex items-center justify-between h-16 ml-6 mr-1">
-							<p class="text-lg leading-6">People</p>
-							<button
-								class="rounded-full hover:bg-[#dadce0] hover:bg-opacity-30"
-								on:click={() => (people = false)}
-								><MaterialIcon props={{ type: 'outlined', class: `p-3` }}>close</MaterialIcon
-								></button
-							>
-						</div>
-						<div class="m-4 bg-[#f1f3f4] rounded-3xl flex items-center">
-							<MaterialIcon
-								props={{
-									type: 'outlined',
-									class: `p-3 bg-transparent ${
-										sendChatEnabled ? 'text-[#1a73e8]' : 'text-[rgba(60,64,67,0.38)]'
-									}`
-								}}>search</MaterialIcon
-							>
-							<!-- svelte-ignore a11y-autofocus -->
-							<input
-								class="w-full mx-4 my-3.5 ml-0 bg-transparent text-sm placeholder-[#5f6368] resize-none outline-none"
-								placeholder="Search for people"
-							/>
-						</div>
-						<div class="flex-1 mx-6 text-sm overflow-y-auto">
-							<div class="flex items-center my-3.5">
-								<div class="flex items-center justify-center w-8 h-8 rounded-full bg-[#512da8]">
-									<p class="text-lg text-white">{name[0].toUpperCase()}</p>
-								</div>
-								<div class="w-[11.25rem] flex mx-2.5">
-									<p class="truncate">{name}</p>
-									<p class="ml-1">(You)</p>
-								</div>
-								<div class="">o</div>
-							</div>
-						</div>
-					</div>
-				</div>
+			{#if peopleState}
+				<People bind:peopleState bind:peopleSearchValue>
+					{#if people[0]}
+						{#each people as person}
+							<ItemPerson name={person.name} {audioState} {setAudio} />
+						{/each}
+					{:else}
+						<p class="text-base text-center">No results</p>
+					{/if}
+				</People>
 			{/if}
 		</div>
 	</div>
