@@ -51,7 +51,11 @@
 	}
 
 	onMount(() => {
-		dark = getItem('dark') === 'true' ? true : false;
+		if (getItem('dark')) {
+			dark = getItem('dark') === 'true' ? true : false;
+		} else {
+			dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+		}
 		mounted = true;
 		typingMeetCode();
 	});
@@ -115,13 +119,13 @@
 					<p class="mt-3 text-xl sm:text-2xl">Extremely simple WebRTC application</p>
 				</div>
 				<form
-					class="flex items-center mt-10 border-2 rounded-xl p-2 hover:border-blue-500 focus-within:border-blue-500"
+					class="flex items-center w-96 mt-10 border-2 rounded-xl p-2 hover:border-blue-500 focus-within:border-blue-500"
 					class:!border-red-500={invalidMeetCode}
 					on:submit={meetCodeSubmitHandler}
 				>
 					<MaterialIcon props={{ type: 'outlined' }}>keyboard</MaterialIcon>
 					<input
-						class="mx-2 py-1 w-64 outline-none bg-transparent"
+						class="mx-2 py-1 w-full outline-none bg-transparent"
 						style="font-size: 1.00875rem;"
 						type="text"
 						autocomplete="off"

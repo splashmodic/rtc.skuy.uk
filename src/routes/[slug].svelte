@@ -177,20 +177,22 @@
 
 	$: if (audioState) {
 		console.log('starting audioState');
-		if (localStream && localStream.getAudioTracks()[0])
+		if (localStream && localStream.getAudioTracks()[0]) {
 			notification = {
 				type: 'success',
 				message: 'Your microphone is working properly'
 			};
+		}
 	}
 
 	$: if (videoState) {
 		console.log('starting videoState');
-		if (localStream && localStream.getVideoTracks()[0])
+		if (localStream && localStream.getVideoTracks()[0]) {
 			notification = {
 				type: 'success',
 				message: 'Your camera is working properly'
 			};
+		}
 	}
 </script>
 
