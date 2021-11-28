@@ -1,21 +1,10 @@
 <script context="module" lang="ts">
-	import { getItem } from '$lib/storage';
 	export async function load({ fetch }) {
-		let dark: boolean;
-		switch (getItem('dark')) {
-			case 'true':
-				dark = true;
-				break;
-			default:
-				dark = false;
-				break;
-		}
 		async function generatorMeetCode() {
-			return (await (await fetch('/api/randomword')).json()).wordlist;
+			return (await (await fetch('/api/randomword?w=3')).json()).wordlist;
 		}
 		return {
 			props: {
-				dark,
 				generatedMeetCode: await generatorMeetCode(),
 				generatorMeetCode
 			}
@@ -26,62 +15,55 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import { setItem } from '$lib/storage';
-	import MaterialIconOutlined from './_MaterialIconOutlined.svelte';
+	import { getItem, setItem } from '$lib/storage';
+	import MaterialIcon from './_MaterialIcon.svelte';
 
 	export let dark: boolean;
 	export let generatedMeetCode: string;
 	export let generatorMeetCode: Function;
 	const reservedChar = `?/&:'"%#`;
 	let meetCode = '';
-	let meetCodePlaceholder = generatedMeetCode;
+	let meetCodePlaceholder: string;
 	let invalidMeetCode = false;
-	let show = false;
-	let meetCodePlaceholderInterval: NodeJS.Timer;
+	let mounted = false;
 	let meetCodePlaceholderTypeInterval: NodeJS.Timer;
 
+	function typingMeetCode() {
+		meetCodePlaceholder = '';
+		let i = 0;
+		meetCodePlaceholderTypeInterval = setInterval(() => {
+			meetCodePlaceholder += generatedMeetCode.charAt(i);
+			++i;
+			if (i === generatedMeetCode.length) {
+				clearInterval(meetCodePlaceholderTypeInterval);
+				generateMeetCode();
+			}
+		}, 100);
+	}
+
 	async function generateMeetCode() {
-		meetCodePlaceholderInterval = setInterval(async () => {
+		setTimeout(async () => {
 			if (!meetCode) {
 				generatedMeetCode = await generatorMeetCode();
-				meetCodePlaceholder = '';
-				let i = 0;
-				meetCodePlaceholderTypeInterval = setInterval(() => {
-					meetCodePlaceholder += generatedMeetCode.charAt(i);
-					++i;
-					if (i === generatedMeetCode.length) {
-						clearInterval(meetCodePlaceholderTypeInterval);
-					}
-				}, 100);
+				typingMeetCode();
 			}
 		}, 10000);
 	}
 
 	onMount(() => {
-		if (dark !== undefined) {
-			show = true;
-		}
+		dark = getItem('dark') === 'true' ? true : false;
+		mounted = true;
+		typingMeetCode();
 	});
 
 	function toggleDarkMode() {
-		setItem('dark', `${!dark}`);
 		dark = !dark;
+		setItem('dark', `${dark}`);
 	}
 
 	function meetCodeSubmitHandler(event: Event) {
 		event.preventDefault();
 		goto(meetCode ? meetCode : generatedMeetCode);
-	}
-
-	let meetCodePlaceholderIntervalValue: NodeJS.Timer;
-	$: if (!meetCode) {
-		clearInterval(meetCodePlaceholderInterval);
-		generateMeetCode();
-	} else {
-		if (meetCodePlaceholderInterval !== meetCodePlaceholderIntervalValue) {
-			clearInterval(meetCodePlaceholderInterval);
-			meetCodePlaceholderIntervalValue = meetCodePlaceholderInterval;
-		}
 	}
 
 	$: if (meetCode) {
@@ -94,14 +76,10 @@
 		}
 	}
 
-	let invalidMeetCodeTimeout: NodeJS.Timeout;
 	$: if (invalidMeetCode) {
-		invalidMeetCodeTimeout = setTimeout(() => {
+		setTimeout(() => {
 			invalidMeetCode = false;
-			clearTimeout(invalidMeetCodeTimeout);
 		}, 5000);
-	} else {
-		clearTimeout(invalidMeetCodeTimeout);
 	}
 </script>
 
@@ -109,35 +87,25 @@
 	<title>rtc.skuy.uk - Extremely simple WebRTC application</title>
 </svelte:head>
 
-<svelte:window
-	on:focus={() => {
-		meetCodePlaceholder = generatedMeetCode;
-		generateMeetCode();
-	}}
-	on:blur={() => {
-		clearInterval(meetCodePlaceholderInterval);
-		clearInterval(meetCodePlaceholderTypeInterval);
-	}}
-/>
-
-{#if show}
+{#if mounted}
 	<div class:dark>
 		<div
-			class="flex flex-col items-center justify-center min-h-screen transition-color duration-300 dark:bg-black dark:text-white"
+			class="flex flex-col items-center justify-center min-h-screen transition-color duration-300 dark:bg-[#202124] dark:text-white"
 		>
 			<header class="w-full py-2 px-3">
 				<div class="flex sm:w-11/12 space-x-4 items-center justify-end h-full">
 					<button
-						class="border-2 hover:border-blue-500 rounded-lg p-1 material-icons-outlined"
-						style="font-size: 2rem; outline-color: rgb(59, 130, 246);"
+						class="border-2 hover:border-blue-500 rounded-lg p-1 outline-[rgb(59,130,246)]"
 						title={`Dark mode: ${dark ? 'enabled' : 'disabled'}`}
 						on:click={toggleDarkMode}
 					>
-						{#if dark}
-							dark_mode
-						{:else}
-							light_mode
-						{/if}
+						<MaterialIcon props={{ type: 'outlined', class: 'text-[2rem]' }}>
+							{#if dark}
+								dark_mode
+							{:else}
+								light_mode
+							{/if}
+						</MaterialIcon>
 					</button>
 				</div>
 			</header>
@@ -147,13 +115,13 @@
 					<p class="mt-3 text-xl sm:text-2xl">Extremely simple WebRTC application</p>
 				</div>
 				<form
-					class="flex items-center sm:w-[22rem] mt-10 border-2 rounded-xl p-2 hover:border-blue-500 focus-within:border-blue-500"
+					class="flex items-center mt-10 border-2 rounded-xl p-2 hover:border-blue-500 focus-within:border-blue-500"
 					class:!border-red-500={invalidMeetCode}
-					on:submit={(event) => meetCodeSubmitHandler(event)}
+					on:submit={meetCodeSubmitHandler}
 				>
-					<MaterialIconOutlined props={{}}>keyboard</MaterialIconOutlined>
+					<MaterialIcon props={{ type: 'outlined' }}>keyboard</MaterialIcon>
 					<input
-						class="mx-2 py-1 w-full outline-none bg-transparent"
+						class="mx-2 py-1 w-64 outline-none bg-transparent"
 						style="font-size: 1.00875rem;"
 						type="text"
 						autocomplete="off"
